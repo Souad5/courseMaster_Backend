@@ -4,6 +4,10 @@ const Enrollment = require("../models/Enrollment");
 const submitAssignment = async (studentId, payload) => {
   const { courseId, lessonId, answerType, answer } = payload;
 
+  if (!courseId || !lessonId) throw new Error("courseId and lessonId are required");
+  if (!["text", "link"].includes(answerType)) throw new Error("answerType must be 'text' or 'link'");
+  if (typeof answer !== "string" || !answer.trim()) throw new Error("Answer cannot be empty");
+
   // ensure student enrolled
   const enrolled = await Enrollment.findOne({ student: studentId, course: courseId });
   if (!enrolled) throw new Error("You are not enrolled in this course");
@@ -13,7 +17,7 @@ const submitAssignment = async (studentId, payload) => {
     course: courseId,
     lessonId,
     answerType,
-    answer,
+    answer: answer.trim(),
   });
 
   return submission;

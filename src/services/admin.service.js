@@ -4,6 +4,7 @@ const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
 const AssignmentSubmission = require("../models/AssignmentSubmission");
 const User = require("../models/User");
+const QuizSubmission = require("../models/QuizSubmission");
 
 const createCourse = async (payload) => {
   const course = await Course.create(payload);
@@ -11,7 +12,7 @@ const createCourse = async (payload) => {
 };
 
 const updateCourse = async (id, payload) => {
-  const course = await Course.findByIdAndUpdate(id, payload, { new: true });
+  const course = await Course.findByIdAndUpdate(id, payload, { new: true, runValidators: true });
   if (!course) throw new Error("Course not found");
   return course;
 };
@@ -19,6 +20,12 @@ const updateCourse = async (id, payload) => {
 const deleteCourse = async (id) => {
   const course = await Course.findByIdAndDelete(id);
   if (!course) throw new Error("Course not found");
+  // remove records that point at the deleted course so lists don't show orphans
+  await Promise.all([
+    Enrollment.deleteMany({ course: id }),
+    AssignmentSubmission.deleteMany({ course: id }),
+    QuizSubmission.deleteMany({ course: id }),
+  ]);
   return { message: "Course deleted" };
 };
 
@@ -36,10 +43,10 @@ const getEnrollments = async (query) => {
     .sort({ createdAt: -1 });
 };
 
-// ✅ NEW: get all assignment submissions (Code-8 bug: queries by courseId instead of course)
+// ✅ NEW: get all assignment submissions
 const getAssignments = async (query = {}) => {
   const filter = {};
-  if (query.courseId) filter.courseId = query.courseId; // Mongoose schema has 'course', not 'courseId'
+  if (query.courseId) filter.course = query.courseId;
 
   const submissions = await AssignmentSubmission.find(filter)
     .populate("student", "name email")
@@ -76,13 +83,20 @@ const getAssignments = async (query = {}) => {
 const reviewAssignment = async (id, payload, adminId) => {
   const { reviewNotes, grade, status } = payload;
 
+  if (typeof status !== "undefined" && !["submitted", "reviewed"].includes(status)) {
+    throw new Error("Invalid status");
+  }
+  if (typeof grade !== "undefined" && grade !== null && (typeof grade !== "number" || grade < 0 || grade > 100)) {
+    throw new Error("Grade must be a number between 0 and 100");
+  }
+
   const update = {};
   if (typeof status !== "undefined") update.status = status;
   if (typeof reviewNotes !== "undefined") update.reviewNotes = reviewNotes;
   if (typeof grade !== "undefined") update.grade = grade;
   if (adminId) update.reviewer = adminId;
 
-  const submission = await AssignmentSubmission.findByIdAndUpdate(id, update, { new: true })
+  const submission = await AssignmentSubmission.findByIdAndUpdate(id, update, { new: true, runValidators: true })
     .populate("student", "name email")
     .populate("course", "title")
     .populate("reviewer", "name");
@@ -96,8 +110,9 @@ const reviewAssignment = async (id, payload, adminId) => {
 const getAnalytics = async () => {
   // Get enrollments grouped by date (last 30 days)
   const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  thirtyDaysAgo.setHours(0, 0, 0, 0);
+  // buckets are UTC days so they line up with the toISOString() keys used below
+  thirtyDaysAgo.setUTCDate(thirtyDaysAgo.getUTCDate() - 29);
+  thirtyDaysAgo.setUTCHours(0, 0, 0, 0);
 
   const enrollments = await Enrollment.find({
     createdAt: { $gte: thirtyDaysAgo }
@@ -114,13 +129,12 @@ const getAnalytics = async () => {
   const chartData = [];
   for (let i = 29; i >= 0; i--) {
     const date = new Date();
-    date.setDate(date.getDate() - i);
-    date.setHours(0, 0, 0, 0);
+    date.setUTCDate(date.getUTCDate() - i);
     const dateStr = date.toISOString().split('T')[0];
 
     // Format date for display (e.g., "Jan 15")
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const displayDate = `${monthNames[date.getMonth()]} ${date.getDate()}`;
+    const displayDate = `${monthNames[date.getUTCMonth()]} ${date.getUTCDate()}`;
 
     chartData.push({
       date: dateStr,

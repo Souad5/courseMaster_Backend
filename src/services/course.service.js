@@ -1,5 +1,6 @@
 // service to handle course-related operations
 
+const mongoose = require("mongoose");
 const Course = require("../models/Course");
 
 const getCourses = async (query) => {
@@ -19,9 +20,11 @@ const getCourses = async (query) => {
   const filter = {};
 
   if (search && typeof search === "string") {
+    // escape regex metacharacters so user input is matched literally
+    const escaped = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     filter.$or = [
-      { title: { $regex: search, $options: "i" } },
-      { instructorName: { $regex: search, $options: "i" } },
+      { title: { $regex: escaped, $options: "i" } },
+      { instructorName: { $regex: escaped, $options: "i" } },
     ];
   }
 
@@ -59,6 +62,7 @@ const getCourses = async (query) => {
 };
 
 const getCourseById = async (id) => {
+  if (!mongoose.isValidObjectId(id)) throw new Error("Course not found");
   const course = await Course.findById(id);
   if (!course) throw new Error("Course not found");
   return course;
