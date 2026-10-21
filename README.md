@@ -7,6 +7,20 @@ Video Link: https://drive.google.com/file/d/1vjMrBxr0-7xqjxMX2EBEBw30D_av1pOu/vi
 Admin email: admin@coursemaster.com
 Pass: admin123
 
+## Quick Start (local)
+
+Requires Node 20+ and a MongoDB instance (local install or a MongoDB Atlas connection string).
+
+```bash
+npm install
+cp .env.example .env     # set MONGODB_URI and JWT_SECRET at minimum
+npm run seed             # demo data: wipes users, courses, enrollments and submissions first
+npm run dev              # http://localhost:5000
+```
+
+Seeded accounts: `admin@coursemaster.com` / `admin123` and `student@coursemaster.com` / `student123`.
+The frontend lives in the sibling repo `courseMaster_frontEnd`; point its `VITE_API_BASE_URL` at `http://localhost:5000/api`.
+
 ## Project Name & Description
 
 **CourseMaster Backend** provides a comprehensive RESTful API for managing an E-learning platform. It handles authentication, course management, enrollments, assignments, quizzes, and administrative operations. The backend is built with Node.js and Express.js, using MongoDB for data storage and JWT for authentication.
@@ -98,7 +112,7 @@ FRONTEND_URL=http://localhost:5173
 
 ## API Documentation
 
-Base URL: `http://localhost:5000/api/api`
+Base URL: `http://localhost:5000/api` (all paths below already start with `/api`)
 
 ### Authentication Endpoints
 
@@ -254,6 +268,8 @@ Base URL: `http://localhost:5000/api/api`
 #### Get All Assignments
 - **GET** `/api/admin/assignments`
 - **Headers:** `Authorization: Bearer <token>`
+- **Query Parameters:**
+  - `courseId` - Only submissions for this course
 - **Response:** Array of assignment submissions
 
 #### Get Analytics
@@ -400,9 +416,19 @@ The following fields are indexed for performance:
 
 The backend is deployed on **Vercel**. Make sure to set all environment variables in your deployment platform.
 
+## Bug fixes in this fork
+
+This fork fixes 16 backend bugs found during QA (IDs BE-01 to BE-16 in the bug report):
+
+- **Auth and security:** login now uses `bcrypt.compare`; invalid or expired JWTs return 401; banned or deleted users lose access immediately (the middleware reloads the user and takes the role from the DB); the admin registration key works and a wrong key returns 400; lesson completion requires owning the enrollment and a lesson from that course.
+- **Business logic:** first-time enrollment no longer fails with "Already enrolled"; quiz `percent` is `score / total * 100`; lesson completion awaits the save; the admin assignments list honours `courseId`.
+- **Validation and data:** course search escapes regex characters; invalid course ids return a clean 404; course price must be >= 0 (also on update); review status and grade (0-100) and assignment/quiz payloads are validated; analytics buckets by UTC day; deleting a user or course also deletes their enrollments and submissions.
+- **Config:** `.env.example` now lists the backend variables; the misleading CORS `Allow-Methods` override was removed.
+
 ## Development
 
 - Development server runs on `http://localhost:5000` (default)
 - Uses `nodemon` for auto-restart during development
 - MongoDB connection is handled via Mongoose
+- There is no automated test suite; changes were verified with an API script and manual browser checks
 
