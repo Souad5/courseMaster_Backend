@@ -418,11 +418,12 @@ The backend is deployed on **Vercel**. Make sure to set all environment variable
 
 ## Bug fixes in this fork
 
-This fork fixes 16 backend bugs found during QA (IDs BE-01 to BE-16 in the bug report):
+This fork fixes 17 backend bugs found during QA (IDs BE-01 to BE-17 in the bug report):
 
 - **Auth and security:** login now uses `bcrypt.compare`; invalid or expired JWTs return 401; banned or deleted users lose access immediately (the middleware reloads the user and takes the role from the DB); the admin registration key works and a wrong key returns 400; lesson completion requires owning the enrollment and a lesson from that course.
 - **Business logic:** first-time enrollment no longer fails with "Already enrolled"; quiz `percent` is `score / total * 100`; lesson completion awaits the save; the admin assignments list honours `courseId`.
 - **Validation and data:** course search escapes regex characters; invalid course ids return a clean 404; course price must be >= 0 (also on update); review status and grade (0-100) and assignment/quiz payloads are validated; analytics buckets by UTC day; deleting a user or course also deletes their enrollments and submissions.
+- **Validation errors:** `POST /auth/register` and `/auth/login` now return which fields are wrong (`errors: [{field, message}]` plus a readable `message`); Zod 4 exposes `issues`, not `errors`.
 - **Config:** `.env.example` now lists the backend variables; the misleading CORS `Allow-Methods` override was removed.
 
 ## Development
